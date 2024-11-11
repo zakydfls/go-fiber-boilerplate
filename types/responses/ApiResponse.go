@@ -1,4 +1,4 @@
-package response
+package responses
 
 type APIResponse struct {
 	Status  int         `json:"status"`

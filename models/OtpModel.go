@@ -5,8 +5,6 @@ import (
 	"strconv"
 
 	"math/rand"
-
-	"gorm.io/gorm"
 )
 
 type OTP struct {
@@ -18,18 +16,18 @@ type OTP struct {
 	table      string `gorm:"-"`
 }
 
-func (p OTP) TableName() string {
+func (p *OTP) TableName() string {
 	if p.table != "" {
 		return p.table
 	}
 	return "otp"
 }
 
-type OtpModel struct{ DB *gorm.DB }
+type OtpModel struct{}
 
 func (o *OtpModel) FindByUserID(userID int64) (*OTP, error) {
 	var verify OTP
-	if err := o.DB.Where("user_id = ? AND is_verified = 0 AND is_expired = 0", userID).First(&verify).Error; err != nil {
+	if err := db.GetDB().Where("user_id = ? AND is_verified = 0 AND is_expired = 0", userID).First(&verify).Error; err != nil {
 		return nil, err
 	}
 	return &verify, nil
@@ -41,24 +39,24 @@ func (o *OtpModel) GenerateRandomNumber() string {
 	return strconv.Itoa(num)
 }
 
-func (o OtpModel) Create(otp OTP) (u OTP, err error) {
-	err = db.GetDB().Create(&otp).Error
+func (o *OtpModel) Create(otp *OTP) (u *OTP, err error) {
+	err = db.GetDB().Create(otp).Error
 	return otp, err
 }
 
-func (o OtpModel) FindOtp(userId int64, otp string) (u OTP, err error) {
+func (o *OtpModel) FindOtp(userId int64, otp string) (u *OTP, err error) {
 	err = db.GetDB().Where("user_id = ?", userId).Where("otp_code = ? ", otp).Where("is_expired = 0").Where("is_verified = 0").First(&u).Error
 	if err != nil {
-		return OTP{}, err
+		return u, err
 	}
 	return u, nil
 }
 
-func (o OtpModel) Update(otp OTP) (u OTP, err error) {
+func (o *OtpModel) Update(otp OTP) (u OTP, err error) {
 	err = db.GetDB().Updates(&otp).Error
 	return otp, err
 }
 
-func (o OtpModel) Delete(id int64) (err error) {
+func (o *OtpModel) Delete(id int64) (err error) {
 	return db.GetDB().Where("id = ?", id).Delete(&OTP{}).Error
 }

@@ -17,7 +17,7 @@ import (
 type AuthModel struct{}
 
 type TokenPayload struct {
-	AccesToken   string
+	AccessToken  string
 	RefreshToken string
 	AccessUUID   string
 	RefreshUUID  string
@@ -31,7 +31,7 @@ type AccessDetails struct {
 }
 
 type Token struct {
-	AccesToken   string `json:"access_token"`
+	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -55,7 +55,7 @@ func (a AuthModel) GenerateToken(userId int64) (*TokenPayload, error) {
 	accessTokenClaim["exp"] = payload.AtExpiresAt
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessTokenClaim)
-	payload.AccesToken, err = accessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	payload.AccessToken, err = accessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
 		return nil, err
 	}
