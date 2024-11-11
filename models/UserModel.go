@@ -49,6 +49,23 @@ func (m *UserModel) Create(user *User) (*User, error) {
 	return user, nil
 }
 
+func (m *UserModel) Login(email string) (*User, error) {
+	var user *User
+	if err := db.GetDB().Where("LOWER(email) = LOWER(?)", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (m *UserModel) Delete(id int64) error {
+	user := User{}
+	err := db.GetDB().Where("id = ?", id).Delete(&user).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *UserModel) FindByID(id int64) (*User, error) {
 	var user *User
 	if err := db.GetDB().Where("id = ?", id).First(&user).Error; err != nil {

@@ -83,6 +83,12 @@ func InitRedis(selectDB ...int) {
 		// 	InsecureSkipVerify: true,
 		// },
 	})
+
+	_, err := RedisClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Success connect to Redis")
 }
 
 // GetRedis ...
