@@ -7,9 +7,12 @@ import (
 	"fiber_boilerplate/types/responses"
 	validators "fiber_boilerplate/validator"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type AuthHandler struct{}
@@ -18,8 +21,89 @@ var authModel = new(models.AuthModel)
 var authUserModel = new(models.UserModel)
 var otpModel = new(models.OtpModel)
 
-func (a *AuthHandler) Refresh(ctx *fiber.Ctx) {
+func (a *AuthHandler) Refresh(ctx *fiber.Ctx) error {
+	var r requests.RefreshTokenRequest
 
+	if err := ctx.BodyParser(&r); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid request",
+		})
+	}
+
+	if err := validators.ValidateStruct(&r); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	token, err := jwt.Parse(r.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("REFRESH_SECRET")), nil
+	})
+
+	if err != nil {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid token",
+		})
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid token",
+		})
+	}
+
+	if token.Valid {
+		refreshUUID, ok := claims["refresh_uuid"].(string)
+		if !ok {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Invalid authorization, please login again",
+			})
+		}
+		userID, err := strconv.ParseInt(fmt.Sprintf("%.f", claims["user_id"]), 10, 64)
+		if err != nil {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Invalid authorization, please login again",
+			})
+		}
+		deleted, delErr := authModel.DestroyAuth(refreshUUID)
+		if delErr != nil || deleted == 0 { //if any goes wrong
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Invalid authorization, please login again",
+			})
+		}
+
+		ts, createErr := authModel.GenerateToken(userID)
+		if createErr != nil {
+			return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"message": "Invalid authorization, please login again",
+			})
+		}
+
+		saveErr := authModel.StartAuth(userID, ts)
+		if saveErr != nil {
+			return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"message": "Invalid authorization, please login again",
+			})
+		}
+		tokens := map[string]string{
+			"access_token":  ts.AccessToken,
+			"refresh_token": ts.RefreshToken,
+		}
+		return ctx.Status(fiber.StatusOK).JSON(responses.APIResponse{
+			Success: true,
+			Message: "Token refreshed successfully",
+			Data:    fiber.Map{"tokens": tokens},
+			Status:  fiber.StatusOK,
+		})
+	} else {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid authorization, please login again",
+		})
+	}
 }
 
 func (a *AuthHandler) Login(ctx *fiber.Ctx) error {

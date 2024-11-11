@@ -16,6 +16,7 @@ func InitRoutes(r *fiber.App) {
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/verify", authHandler.VerifyOtp)
 	auth.Post("/login", authHandler.Login)
+	auth.Post("/refresh", authHandler.Refresh)
 
 	userHandler := new(handlers.UserHandler)
 	v1.Get("/test", userHandler.Test)
