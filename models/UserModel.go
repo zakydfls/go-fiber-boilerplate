@@ -50,39 +50,39 @@ func (m *UserModel) Create(user *User) (*User, error) {
 }
 
 func (m *UserModel) FindByID(id int64) (*User, error) {
-	var user User
+	var user *User
 	if err := db.GetDB().Where("id = ?", id).First(&user).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return user, nil
 }
 
 func (m *UserModel) FindByEmail(email string) (*User, error) {
-	var user User
+	var user *User
 	if err := db.GetDB().Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return user, nil
 }
 
 func (m *UserModel) FindByUsername(username string) (*User, error) {
-	var user User
+	var user *User
 	if err := db.GetDB().Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return user, nil
 }
 
 func (m *UserModel) FindByPhone(phone string) (*User, error) {
-	var user User
+	var user *User
 	if err := db.GetDB().Where("phone = ?", phone).First(&user).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return user, nil
 }
 
 func (m *UserModel) Update(user *User) (*User, error) {
-	err := db.GetDB().Save(user).Error
+	err := db.GetDB().Save(&user).Error
 	if err != nil {
 		return nil, err
 	}

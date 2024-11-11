@@ -65,6 +65,30 @@ func (a *AuthHandler) Register(ctx *fiber.Ctx) error {
 		UpdatedAt:     time.Now(),
 	}
 
+	_, err = authUserModel.FindByEmail(r.Email)
+	if err == nil {
+		ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"message": "Email already exists",
+		})
+		return err
+	}
+
+	_, err = authUserModel.FindByUsername(r.Username)
+	if err == nil {
+		ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"message": "Username already exists",
+		})
+		return err
+	}
+
+	_, err = authUserModel.FindByPhone(*r.Phone)
+	if err == nil {
+		ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"message": "Phone number already exists",
+		})
+		return err
+	}
+
 	user, err := authUserModel.Create(&newUser)
 	if err != nil {
 		ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
