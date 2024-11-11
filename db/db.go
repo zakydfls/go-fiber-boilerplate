@@ -29,6 +29,7 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Success connect to DB")
 }
 
 func ConnectDB(dataSourceName string) (*gorm.DB, error) {
