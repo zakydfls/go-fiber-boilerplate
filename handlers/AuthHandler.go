@@ -25,15 +25,11 @@ func (a *AuthHandler) Refresh(ctx *fiber.Ctx) error {
 	var r requests.RefreshTokenRequest
 
 	if err := ctx.BodyParser(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request",
-		})
+		return ctx.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ctx, err))
 	}
 
 	if err := validators.ValidateStruct(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return ctx.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ctx, err))
 	}
 
 	token, err := jwt.Parse(r.RefreshToken, func(token *jwt.Token) (interface{}, error) {
@@ -44,33 +40,25 @@ func (a *AuthHandler) Refresh(ctx *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Invalid token",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Invalid token",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	if token.Valid {
 		refreshUUID, ok := claims["refresh_uuid"].(string)
 		if !ok {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Invalid authorization, please login again",
-			})
+			return ErrorResponse(ctx, err)
 		}
 		userID, err := strconv.ParseInt(fmt.Sprintf("%.f", claims["user_id"]), 10, 64)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Invalid authorization, please login again",
-			})
+			return ErrorResponse(ctx, err)
 		}
 		deleted, delErr := authModel.DestroyAuth(refreshUUID)
-		if delErr != nil || deleted == 0 { //if any goes wrong
+		if delErr != nil || deleted == 0 {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "Invalid authorization, please login again",
 			})
@@ -78,16 +66,12 @@ func (a *AuthHandler) Refresh(ctx *fiber.Ctx) error {
 
 		ts, createErr := authModel.GenerateToken(userID)
 		if createErr != nil {
-			return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"message": "Invalid authorization, please login again",
-			})
+			return ErrorResponse(ctx, createErr)
 		}
 
 		saveErr := authModel.StartAuth(userID, ts)
 		if saveErr != nil {
-			return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"message": "Invalid authorization, please login again",
-			})
+			return ErrorResponse(ctx, saveErr)
 		}
 		tokens := map[string]string{
 			"access_token":  ts.AccessToken,
@@ -110,38 +94,28 @@ func (a *AuthHandler) Login(ctx *fiber.Ctx) error {
 	var r requests.LoginUserRequest
 
 	if err := ctx.BodyParser(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	if err := validators.ValidateStruct(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	user, err := authUserModel.Login(r.Email)
 	if err != nil {
-		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "Invalid credentials",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	err = helpers.ComparePassword(user.Password, r.Password)
 	if err != nil {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Invalid credentials",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	var token models.Token
 
 	tokenDetails, err := authModel.GenerateToken(user.ID)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to generate token",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	saveErr := authModel.StartAuth(user.ID, tokenDetails)
@@ -161,9 +135,7 @@ func (a *AuthHandler) Login(ctx *fiber.Ctx) error {
 		_, err = otpModel.Create(&otp)
 
 		if err != nil {
-			return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"message": "Failed to create otp",
-			})
+			return ErrorResponse(ctx, err)
 		}
 
 		ctx.Status(fiber.StatusOK).JSON(responses.APIResponse{
@@ -198,23 +170,17 @@ func (a *AuthHandler) Register(ctx *fiber.Ctx) error {
 	var r requests.CreateUserRequest
 
 	if err := ctx.BodyParser(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request",
-		})
+		return ErrorResponse(ctx, err)
 
 	}
 
 	if err := validators.ValidateStruct(&r); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	hashedPassword, err := helpers.HashPassword(string(r.Password))
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to hash password",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	newUser := models.User{
@@ -234,30 +200,22 @@ func (a *AuthHandler) Register(ctx *fiber.Ctx) error {
 
 	_, err = authUserModel.FindByEmail(r.Email)
 	if err == nil {
-		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"message": "Email already exists",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	_, err = authUserModel.FindByUsername(r.Username)
 	if err == nil {
-		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"message": "Username already exists",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	_, err = authUserModel.FindByPhone(*r.Phone)
 	if err == nil {
-		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"message": "Phone number already exists",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	user, err := authUserModel.Create(&newUser)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to create user",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	otp := models.OTP{
@@ -269,9 +227,7 @@ func (a *AuthHandler) Register(ctx *fiber.Ctx) error {
 
 	_, err = otpModel.Create(&otp)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to create otp",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	ctx.Status(fiber.StatusCreated).JSON(responses.APIResponse{
@@ -291,23 +247,17 @@ func (a *AuthHandler) VerifyOtp(ctx *fiber.Ctx) error {
 	var r requests.VerifyOtpRequest
 
 	if err := ctx.BodyParser(&r); err != nil {
-		ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	user, err := authUserModel.FindByPhone(r.PhoneNumber)
 	if err != nil {
-		ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "User not found",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	findOtp, err := otpModel.FindOtp(user.ID, r.Otp)
 	if err != nil {
-		ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "Otp not found",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	fmt.Println(findOtp)
@@ -315,9 +265,7 @@ func (a *AuthHandler) VerifyOtp(ctx *fiber.Ctx) error {
 	user.IsActive = true
 	_, err = authUserModel.Update(user)
 	if err != nil {
-		ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to activate user",
-		})
+		return ErrorResponse(ctx, err)
 	}
 	otpModel.Delete(findOtp.ID)
 
@@ -325,9 +273,7 @@ func (a *AuthHandler) VerifyOtp(ctx *fiber.Ctx) error {
 
 	tokenDetails, err := authModel.GenerateToken(user.ID)
 	if err != nil {
-		ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to generate token",
-		})
+		return ErrorResponse(ctx, err)
 	}
 
 	saveErr := authModel.StartAuth(user.ID, tokenDetails)
