@@ -58,7 +58,7 @@ func (m *UserModel) Login(email string) (*User, error) {
 }
 
 func (m *UserModel) Delete(id int64) error {
-	user := User{}
+	user := &User{}
 	err := db.GetDB().Where("id = ?", id).Delete(&user).Error
 	if err != nil {
 		return err
